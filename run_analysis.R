@@ -1,29 +1,23 @@
-testwd <- "C:/Users/sjlba/OneDrive/Documents/r-studio-test/R Studio/getdata_projectfiles_UCI HAR Dataset/UCI HAR Dataset/test"
-trainwd <- "C:/Users/sjlba/OneDrive/Documents/r-studio-test/R Studio/getdata_projectfiles_UCI HAR Dataset/UCI HAR Dataset/train"
-collumns <- c("total_acc_x_mean", "total_acc_x_std", "total_acc_y_mean", 
-              "total_acc_y_std", "total_acc_z_mean", "total_acc_z_std",
-              "body_gyro_x_mean", "body_gyro_x_std", "body_gyro_y_mean",
-              "body_gyro_y_std", "body_gyro_z_mean", "body_gyro_z_std",
-              "body_acc_x_mean", "body_acc_x_std", "body_acc_y_mean", 
-              "body_acc_y_std", "body_acc_z_mean", "body_acc_z_std")
-rows <- c("")
-collumnindex <- c(1, 4, 2, 5, 3, 6, 121, 124, 122, 125, 123,
-                  126, 266, 269, 267, 270, 268, 271)
-valueindex <- c()
-for(i in 1:length(collumnindex)){
-  setwd(trainwd)
-  train <- read.csv("X_train.csv")
-  setwd(testwd)
-  test <- read.csv("x_test.csv")
-  totalvec <- c()
-  for(j in 1:nrow(train)){
-    totalvec <- c(totalvec, train[j, collumnindex[i]])
-  }
-  for(k in 1:nrow(test)){
-    totalvec <- c(totalvec, test[k, collumnindex[i]])
-  }
-  x <- mean(totalvec)
-  valueindex <- c(valueindex, x)
-} 
-array1 <- array(c(valueindex), dim = c(1, 18, 1), dimnames = list(rows, collumns))
-print(array1)
+packages <- c("data.table", "reshape2")
+sapply(packages, require, character.only=TRUE, quietly=TRUE)
+activityLabels <- fread('activity_labels.txt',col.names = c("classLabels", "activityName"))
+features <- fread('features.txt',col.names = c("index", "featureNames"))
+selected_features <- grep("(mean|std)\\(\\)", features[, featureNames])
+cols <- features[selected_features, featureNames]
+cols <- gsub('[()]', '', cols)
+train <- fread('X_train.txt')[, selected_features, with = FALSE]
+data.table::setnames(train, colnames(train), cols)
+train.Activities <- fread('y_train.txt', col.names = c('Activity'))
+train.Subjects <- fread('subject_train.txt', col.names = c("Subject"))
+train <- cbind(train.Subjects, train.Activities, train)
+test <- fread('X_test.txt')[, selected_features, with = FALSE]
+data.table::setnames(test, colnames(test), cols)
+test.Activities <- fread('y_test.txt', col.names = c('Activity'))
+test.Subjects <- fread('subject_test.txt', col.names = c("Subject"))
+test <- cbind(test.Subjects, test.Activities, test)
+combined.data <- rbind(train, test)
+combined.data[["Activity"]] <- factor(combined.data[, Activity], levels = activityLabels[["classLabels"]], labels = activityLabels[["activityName"]])
+combined.data[["Subject"]] <- as.factor(combined.data[, Subject])
+combined.data <- reshape2::melt(data = combined.data, id = c("Subject", "Activity"))
+combined.data <- reshape2::dcast(data = combined.data, Subject + Activity ~ variable, fun.aggregate = mean)
+data.table::fwrite(x = combined.data, file = "finalData.txt", quote = FALSE)
